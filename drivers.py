@@ -15,6 +15,7 @@ from langchain import FAISS
 from langchain.document_loaders.sitemap import SitemapLoader
 from urllib.parse import urlparse
 from config import *
+import sys
 
 # Constants for retrying and backoff
 NUM_RETRIES = 10
@@ -66,6 +67,7 @@ def get_docs(url):
     error_urls = []
     # Initialize SitemapLoader with web path (URL)
     sitemap_loader = SitemapLoader(web_path=url)
+    
     # Continue until all URLs are parsed
     while not all_urls_parsed:
         sitemap_loader.requests_per_second = 10
@@ -82,7 +84,9 @@ def get_docs(url):
                 # Retry with exponential backoff if there is an error
                 time.sleep(time_to_sleep)
                 pass
-
+            except requests.exceptions.ConnectionError:
+                st.error("Invalid website")
+                sys.exit('My error message')
         # Filter out documents with error content and append to the final list
         final_docs.extend([doc for doc in initial_docs if doc.page_content !=
                           '429 Too Many Requests\nYou have sent too many requests in a given amount of time.\n\n'])
@@ -128,8 +132,11 @@ def fetch_result_set(query, similarity_threshold, main_url):
     # Initialize VertexAIEmbeddings for similarity search
     embeddings = VertexAIEmbeddings()
     # Load the FAISS index for the main URL
-    vdb_chunks = FAISS.load_local(
-        "index/" + get_base_url(main_url), embeddings)
+    try:
+        vdb_chunks = FAISS.load_local(
+            "index/" + get_base_url(main_url), embeddings)
+    except:
+        refresh_embeddings(main_url)
     # Perform similarity search with user's query
     results = vdb_chunks.similarity_search_with_score(query)
     matches = []
@@ -210,21 +217,14 @@ def run_chain(query, matches):
 
 def main():
     # Streamlit app title and expander for defining or updating the knowledge base
-    st.title("A GenAI Based Custom Search Engine")
-    my_expander = st.expander(
-        label='Click here to define or update the knowledge base', expanded=False)
-    with my_expander:
-        input_url = st.text_input(
-            "Enter the Sitemap URL of the knowledge base")
-        similarity_threshold = st.number_input(
-            "Enter the similarity threshold", value=0.5)
-        regenerate = st.checkbox(
-            "Do you want to regenerate the vectors for the data?", value=False)
-        st.write(
-            "**If the index for the website doesn't exist, it will get generated during the first run")
-
-    # User input for the query
-    query = st.text_input("Ask a question:", "What is this all about?")
+    input_url = st.sidebar.text_input("Enter the Sitemap URL of the knowledge base")
+    st.title("Custom Search Engine")
+    similarity_threshold = st.sidebar.slider("Enter the similarity threshold (%)",min_value=0, max_value=100)
+    similarity_threshold/=100
+    regenerate = st.sidebar.checkbox("Do you want to regenerate the vectors for the data?", value=False)
+    st.sidebar.info("If the index for the website doesn't exist, it will get generated during the first run")
+    # User input for the query  
+    query = st.text_input("Ask a question:", "Summarise what this is all about?")
 
     if st.button("Get Answer"):
         # Validate and standardize the URL, and check if the index needs to be regenerated
