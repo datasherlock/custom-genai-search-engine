@@ -1,5 +1,9 @@
 ## Introduction
-The code provided is a Python script that creates a custom search engine using VertexAI and Streamlit. It allows users to input the URL of a website's sitemap XML file, which will serve as the knowledge base. The app then crawls the entire website, refreshes vector embeddings, and uses the information as a knowledge base to answer user queries.
+This tool creates a custom search engine using VertexAI, Langchain and Streamlit. It allows users to input the URL of a website's sitemap XML file, which will serve as the knowledge base. The app then crawls the entire website, refreshes vector embeddings, and uses the information as a knowledge base to answer user queries.
+
+## Architecture
+![GenAI Based Custom Search Engine (1)](https://github.com/datasherlock/custom-genai-search-engine/assets/11506905/3523f7a7-ace0-48f5-b09b-0910d2caf423)
+
 
 ## Dependencies
 Before we dive into the code, it's essential to understand the dependencies used in the application:
