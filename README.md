@@ -30,22 +30,30 @@ This function takes a URL as input and extracts the base URL (excluding the prot
 
 This function takes the main website URL (sitemap XML URL) as input. It uses the `langchain` library's `SitemapLoader` to crawl the website and fetch all the documents. If rate-limiting (429 error) occurs during crawling, it retries up to a specified number of times with a backoff delay. It returns a list of document objects representing the website pages.
 
-### 5. `retry_with_backoff(func, *args, retry_delay=5, backoff_factor=2, **kwargs)`
-
-This is a utility function used to retry a given function if it raises an exception. It attempts the function execution multiple times with increasing backoff delays between attempts, up to a maximum number of attempts.
-
-### 6. `refresh_embeddings(main_url)`
+### 5. `refresh_embeddings(main_url)`
 
 This function is responsible for refreshing the vector embeddings for the knowledge base. It calls the `get_docs` function to fetch all the documents from the website, then it uses the `VertexAIEmbeddings` class from the `langchain` library to create embeddings for the documents. Finally, it saves the embeddings using the `FAISS` (Facebook AI Similarity Search) index.
 
-### 7. `fetch_result_set(query, similarity_threshold, main_url)`
+### 6. `fetch_result_set(query, similarity_threshold, main_url)`
 
 This function takes the user's query, similarity threshold, and main website URL as inputs. It initializes the Vertex AI service using the `google-cloud-aiplatform` library. It loads the embeddings index for the website using `FAISS`. Then, it performs a similarity search with the user's query to find matching documents from the knowledge base based on the specified similarity threshold. The function returns a DataFrame containing the matching documents and their similarity scores.
 
-### 8. `run_chain(query, matches)`
+### 7. `run_chain(query, matches)`
 
 This function takes the user's query and the DataFrame containing matching documents and their similarity scores. It sets up a language model chain using the `langchain` library to generate a summary of the relevant documents that best answer the user's query. The function returns the generated summary in Markdown format.
 
+## Deployment
+
+### Generate an image and store in GCP's Container Registry 
+`gcloud builds submit --tag gcr.io/<project>/<image-name>`
+Refer to the DockerFile for any specific settings you may want to modify
+
+### Deploy the image to a Cloud Run service in port 8501
+`gcloud run deploy <service name> --image gcr.io/<project>/<image-name> --region <region> --platform managed --allow-unauthenticated --quiet --port 8501`
+
+### Create an HTTPS Load Balancer
+
+### Secure with IAP
 
 ## References
 
@@ -55,5 +63,3 @@ For further information on the dependencies and libraries used in the applicatio
 - Streamlit: https://docs.streamlit.io/
 - Google Cloud AI Platform: https://cloud.google.com/ai-platform
 - Langchain: (No public documentation available. If you have access, refer to the library's official documentation)
-
-Keep in mind that some dependencies and libraries might require authentication or access permissions. Always review the official documentation for proper usage and implementation.
