@@ -1,3 +1,6 @@
+## Medium Blog
+[Read Detailed Blog](https://datasherlock.medium.com/a-custom-ama-app-using-vertexai-4788834fb766)
+
 ## Introduction
 This tool creates a custom search engine using VertexAI, Langchain and Streamlit. It allows users to input the URL of a website's sitemap XML file, which will serve as the knowledge base. The app then crawls the entire website, refreshes vector embeddings, and uses the information as a knowledge base to answer user queries.
 
