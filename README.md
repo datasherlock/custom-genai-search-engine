@@ -45,16 +45,16 @@ This function takes the user's query and the DataFrame containing matching docum
 
 ## Deployment
 
-### Generate an image and store in GCP's Container Registry 
+### - Generate an image and store in GCP's Container Registry 
 `gcloud builds submit --tag gcr.io/<project>/<image-name>`
 Refer to the DockerFile for any specific settings you may want to modify
 
-### Deploy the image to a Cloud Run service in port 8501
+### - Deploy the image to a Cloud Run service in port 8501
 `gcloud run deploy <service name> --image gcr.io/<project>/<image-name> --region <region> --platform managed --allow-unauthenticated --quiet --port 8501`
 
-### Create an HTTPS Load Balancer
+### - Create an HTTPS Load Balancer
 
-### Secure with IAP
+### - Secure with IAP
 
 ## References
 
