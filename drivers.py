@@ -152,7 +152,7 @@ def fetch_result_set(query, similarity_threshold, main_url, max_items_percentage
             "index/" + get_base_url(main_url), embeddings)
     except:
         refresh_embeddings(main_url, max_items_percentage)
-        fetch_result_set(query, similarity_threshold, main_url)
+        fetch_result_set(query, similarity_threshold, main_url, max_items_percentage)
     # Perform similarity search with user's query
     results = vdb_chunks.similarity_search_with_score(query)
     matches = []
