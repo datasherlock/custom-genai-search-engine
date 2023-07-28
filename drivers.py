@@ -16,10 +16,14 @@ from langchain.document_loaders.sitemap import SitemapLoader
 from urllib.parse import urlparse
 from config import *
 import sys
+import random
+import math
+from overrides import CustomSitemapLoader
 
 # Constants for retrying and backoff
 NUM_RETRIES = 10
 BACKOFF_FACTOR = 1
+MAX_DOCS = 50
 
 # Function to validate the URL scheme and standardize the URL
 
@@ -60,23 +64,24 @@ def get_base_url(url):
 
 
 @st.cache_data(ttl=86400, show_spinner="Parsing the website...")
-def get_docs(url):
+def get_docs(url, max_items_percentage):
     # Variables to track if all URLs are parsed
     all_urls_parsed = False
     final_docs = []
     error_urls = []
+    scrapping_factor = float(max_items_percentage)/100.0
     # Initialize SitemapLoader with web path (URL)
-    sitemap_loader = SitemapLoader(web_path=url)
-    
+    sitemap_loader = CustomSitemapLoader(web_path=url, scrapping_factor = scrapping_factor)
     # Continue until all URLs are parsed
     while not all_urls_parsed:
         sitemap_loader.requests_per_second = 10
         sitemap_loader.raise_for_status = True
         # Retry the web request if there is an error
         for retry_num in range(NUM_RETRIES):
+            mode = 'RETRY' if retry_num > 0 else 'INITIAL'
             time_to_sleep = BACKOFF_FACTOR * (2 ** (retry_num - 1))
             try:
-                initial_docs = sitemap_loader.load()
+                initial_docs = sitemap_loader.load(mode)
                 if len(initial_docs) != len(error_urls) and len(error_urls) > 1:
                     raise requests.exceptions.HTTPError
                 break
@@ -96,28 +101,36 @@ def get_docs(url):
         # Check if all URLs are parsed, if not, continue retrying
         all_urls_parsed = True if len(error_urls) == 0 else False
         sitemap_loader.filter_urls = error_urls
+    
+    if len(final_docs) > MAX_DOCS:
+        st.warning(f"Embedding {len(final_docs)} documents may take a long time. Reduce the % of website to scrapped to less than {math.floor(MAX_DOCS*100/ len(final_docs))} %")
     return final_docs
 
 # Function to refresh vector embeddings for the crawled documents
 
 
 @st.cache_resource(ttl=86400, show_spinner="Refreshing the data embeddings. This may take a while...")
-def refresh_embeddings(main_url):
+def refresh_embeddings(main_url, max_items_percentage):
     # Initialize Google Cloud AI Platform with project ID and location
     aiplatform.init(project=f"{project_id}", location=f"us-central1")
+    
     # Get all the crawled documents
-    documents = get_docs(main_url)
+    documents = get_docs(main_url,max_items_percentage)
     print(f"Total docs = {len(documents)}")
-    # Initialize VertexAIEmbeddings
+    
     embeddings = VertexAIEmbeddings()
+    
     # Split documents into chunks for indexing
     text_splitter = CharacterTextSplitter(
-        chunk_size=1000, chunk_overlap=0, separator=" ",)
+        chunk_size=500, chunk_overlap=0, separator="\n\n",)
     chunked_docs = text_splitter.split_documents(documents)
+    
     try:
         # Create and save FAISS index for chunked documents
         faiss_index = FAISS.from_documents(chunked_docs, embeddings)
+        print("Index created")
         faiss_index.save_local("index/" + get_base_url(main_url))
+        print("Index saved locally")
     except:
         # Display error if the URL is not valid or indexing fails
         st.error(
@@ -137,6 +150,7 @@ def fetch_result_set(query, similarity_threshold, main_url):
             "index/" + get_base_url(main_url), embeddings)
     except:
         refresh_embeddings(main_url)
+        fetch_result_set(query, similarity_threshold, main_url)
     # Perform similarity search with user's query
     results = vdb_chunks.similarity_search_with_score(query)
     matches = []
@@ -177,12 +191,9 @@ def run_chain(query, matches):
                     You will be given a question and set of possible answers
                     enclosed in triple backticks (```) .
                     You are truthful and never lie. Never make up facts and if you are not 100% sure, reply with why you can not answer in a truthful way.
-                    Select the response that is most relevant to answer the question.
-                    question in as much detail as possible.
-                    Your answer should include the exact answer and related details. 
-                    Your answer should be in Markdown in a numbered list format.
-
-
+                    The source of your information must be from the description provided to you and not from anywhere else
+                    Answer the question in as much detail as possible.
+                    Your answer should include the exact answer and all related details. The response should be structured in a way that a CEO would understand.
                     Description:
                     ```{text}```
 
@@ -221,8 +232,13 @@ def main():
     st.title("Custom Search Engine")
     similarity_threshold = st.sidebar.slider("Enter the similarity threshold (%)",min_value=0, max_value=100)
     similarity_threshold/=100
+    max_items_percentage = st.sidebar.select_slider("Percentage of website to scrape",options=[1,10,25,50,75,100])
     regenerate = st.sidebar.checkbox("Do you want to regenerate the vectors for the data?", value=False)
+    cache_clear = st.sidebar.button("Clear Cache")
+    if cache_clear:
+        st.cache_resource.clear()
     st.sidebar.info("If the index for the website doesn't exist, it will get generated during the first run")
+    
     # User input for the query  
     query = st.text_input("Ask a question:", "Summarise what this is all about?")
 
@@ -234,7 +250,7 @@ def main():
         else:
             if regenerate:
                 # Refresh the vector embeddings if requested
-                refresh_embeddings(url)
+                refresh_embeddings(url, max_items_percentage)
                 st.success("Vector Embedding Complete!")
             # Fetch possible responses based on the user's query and similarity threshold
             with st.spinner(f"""Fetching possible responses with similarity={similarity_threshold}"""):
