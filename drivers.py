@@ -45,9 +45,10 @@ def validate_url_scheme(url) -> str:
 
 def standardise_url(url):
     parsed_url = urlparse(url)
+    components = parsed_url.netloc.split(".")
     final_url = 'www.' + \
         parsed_url.netloc if not parsed_url.netloc.startswith(
-            'www.') else parsed_url.netloc
+            'www.') and len(components)==2 else parsed_url.netloc
     return parsed_url.scheme + '://' + final_url + parsed_url.path
 
 # Function to get the base URL from the provided URL
@@ -55,9 +56,10 @@ def standardise_url(url):
 
 def get_base_url(url):
     parsed_url = urlparse(url)
+    components = parsed_url.netloc.split(".")
     final_url = 'www.' + \
         parsed_url.netloc if not parsed_url.netloc.startswith(
-            'www.') else parsed_url.netloc
+            'www.') and len(components)==2 else parsed_url.netloc
     return final_url
 
 # Caching decorator to optimize web crawling process
@@ -139,7 +141,7 @@ def refresh_embeddings(main_url, max_items_percentage):
 # Function to fetch possible responses based on user's query and similarity threshold
 
 
-def fetch_result_set(query, similarity_threshold, main_url):
+def fetch_result_set(query, similarity_threshold, main_url, max_items_percentage):
     # Initialize Google Cloud AI Platform with project ID and location
     aiplatform.init(project=f"{project_id}", location=f"us-central1")
     # Initialize VertexAIEmbeddings for similarity search
@@ -149,7 +151,7 @@ def fetch_result_set(query, similarity_threshold, main_url):
         vdb_chunks = FAISS.load_local(
             "index/" + get_base_url(main_url), embeddings)
     except:
-        refresh_embeddings(main_url)
+        refresh_embeddings(main_url, max_items_percentage)
         fetch_result_set(query, similarity_threshold, main_url)
     # Perform similarity search with user's query
     results = vdb_chunks.similarity_search_with_score(query)
@@ -230,9 +232,9 @@ def main():
     # Streamlit app title and expander for defining or updating the knowledge base
     input_url = st.sidebar.text_input("Enter the Sitemap URL of the knowledge base")
     st.title("Custom Search Engine")
-    similarity_threshold = st.sidebar.slider("Enter the similarity threshold (%)",min_value=0, max_value=100)
+    similarity_threshold = st.sidebar.slider("Enter the similarity threshold (%)",min_value=0, max_value=100,value=50)
     similarity_threshold/=100
-    max_items_percentage = st.sidebar.select_slider("Percentage of website to scrape",options=[1,10,25,50,75,100])
+    max_items_percentage = st.sidebar.select_slider("Percentage of website to scrape",options=[1,10,25,50,75,100],value=10)
     regenerate = st.sidebar.checkbox("Do you want to regenerate the vectors for the data?", value=False)
     cache_clear = st.sidebar.button("Clear Cache")
     if cache_clear:
@@ -254,7 +256,7 @@ def main():
                 st.success("Vector Embedding Complete!")
             # Fetch possible responses based on the user's query and similarity threshold
             with st.spinner(f"""Fetching possible responses with similarity={similarity_threshold}"""):
-                results = fetch_result_set(query, similarity_threshold, url)
+                results = fetch_result_set(query, similarity_threshold, url, max_items_percentage)
                 final = run_chain(query, results)
                 st.success("Completed")
             # Display the generated responses
